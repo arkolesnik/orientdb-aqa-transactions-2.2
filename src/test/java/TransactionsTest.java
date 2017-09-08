@@ -1,4 +1,3 @@
-import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
@@ -62,7 +61,9 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                         graph = factory.getTx();
                         while (!interrupt.get()) {
                             iterationNumber++;
-                            addVertexesAndEdges(graph, iterationNumber);
+                            if (Counter.getVertexesNumber() < BasicUtils.getAddedLimit()) {
+                                addVertexesAndEdges(graph, iterationNumber);
+                            }
                         }
                         graph.shutdown();
                         return null;
@@ -80,7 +81,10 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                         graph = factory.getTx();
                         while (!interrupt.get()) {
                             iterationNumber++;
-                            //deleteVertexesAndEdges(graph, iterationNumber);
+                            if (Counter.getDeleted() < BasicUtils.getDeletedLimit()
+                                    && Counter.getVertexesNumber() > BasicUtils.getMaxBatch()) {
+                                deleteVertexesAndEdges(graph, iterationNumber);
+                            }
                         }
                         graph.shutdown();
 
@@ -234,7 +238,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             Iterable<Edge> edges = vertex.getEdges(Direction.OUT, EDGE_LABEL);
             Assert.assertTrue(edges.iterator().hasNext(),
                     "Edge OUT doesn't exist in vertex " + vertex.getProperty(VERTEX_ID));
-            Vertex nextVertex = edges.iterator().next().getVertex(Direction.OUT);
+            Vertex nextVertex = edges.iterator().next().getVertex(Direction.IN);
 
             long vertexId;
             if (i == batchCount - 1) {
@@ -261,21 +265,31 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         }
     }*/
 
-    /*private void deleteVertexesAndEdges(OrientGraph graph, long iterationNumber) {
-        graph.begin();
+    private void deleteVertexesAndEdges(OrientGraph graph, long iterationNumber) {
+        boolean success = false;
+        long firstVertex;
+        OrientDynaElementIterable firstVertexResult = null;
+        while (!success) {
+            firstVertex = BasicUtils.getRandomVertexId();
+            firstVertexResult = graph
+                    .command(new OCommandSQL("select from V where " + VERTEX_ID + " = " + firstVertex))
+                    .execute();
+            if (firstVertexResult.iterator().hasNext()) {
+                success = true;
+            }
+        }
 
-        long firstVertex = BasicUtils.getRandomVertexId();
-        OResultSet resultSet = graph.query("select from V where " + VERTEX_ID + " = ?", firstVertex);
-        OVertex vertex = (OVertex) resultSet.next().getElement().get();
+        Vertex vertex = (OrientVertex) firstVertexResult.iterator().next();
+
         int batchCount = vertex.getProperty(BATCH_COUNT);
         int threadId = vertex.getProperty(CREATOR_ID);
 
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < batchCount; i++) {
-            Iterable<OEdge> edges = vertex.getEdges(ODirection.OUT, EDGE_LABEL);
+            Iterable<Edge> edges = vertex.getEdges(Direction.OUT, EDGE_LABEL);
             Assert.assertTrue(edges.iterator().hasNext(),
                     "Edge OUT doesn't exist in vertex " + vertex.getProperty(VERTEX_ID));
-            OVertex nextVertex = edges.iterator().next().getTo();
+            Vertex nextVertex = edges.iterator().next().getVertex(Direction.IN);
             ids.add(nextVertex.getProperty(VERTEX_ID));
             vertex = nextVertex;
         }
@@ -284,9 +298,13 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         List<Long> deletedIds = new ArrayList<>();
         for (int i = 0; i < batchCount; i++) {
             long idToDelete = ids.get(i);
-            OResultSet result = graph.command("delete vertex V where " + VERTEX_ID + " = ?", idToDelete);
-            long deletedCount = result.next().getProperty("count");
-            Assert.assertEquals(deletedCount, 1, "Vertex was not deleted; ");
+            OrientDynaElementIterable deletedVertexResult
+                    = graph.command(new OCommandSQL("delete vertex V where " + VERTEX_ID + " = " + idToDelete))
+                    .execute();
+
+/*            long deletedCount = deletedVertexResult.iterator().next().getProperty("count");
+            Assert.assertEquals(deletedCount, 1, "Vertex was not deleted; ");*/
+
             deletedIds.add(idToDelete);
             int deletedIdsSize = deletedIds.size();
             if (deletedIdsSize == batchCount / 3 || deletedIdsSize == batchCount * 2 / 3 || deletedIdsSize == batchCount) {
@@ -301,5 +319,5 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             }
         }
         graph.commit();
-    }*/
+    }
 }
