@@ -63,6 +63,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                             iterationNumber++;
                             if (Counter.getVertexesNumber() < BasicUtils.getAddedLimit()) {
                                 addVertexesAndEdges(graph, iterationNumber);
+                                LOG.info("Ring is created");
                             }
                         }
                         graph.shutdown();
@@ -84,6 +85,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                             if (Counter.getDeleted() < BasicUtils.getDeletedLimit()
                                     && Counter.getVertexesNumber() > BasicUtils.getMaxBatch()) {
                                 deleteVertexesAndEdges(graph, iterationNumber);
+                                LOG.info("Ring is deleted");
                             }
                         }
                         graph.shutdown();
@@ -123,8 +125,8 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     }
 
     private void addVertexesAndEdges(OrientGraph graph, long iterationNumber) {
-        //int batchCount = BasicUtils.generateBatchSize();
-        int batchCount = 6;
+        int batchCount = BasicUtils.generateBatchSize();
+        //int batchCount = 6;
         List<Vertex> vertexes = new ArrayList<>(batchCount);
         List<Long> ids = new ArrayList<>();
 
@@ -228,6 +230,8 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         Vertex vertex = null;
         if (result.iterator().hasNext()) {
             vertex = (OrientVertex) result.iterator().next();
+        } else {
+            LOG.warn(firstVertexId + " vertexId wasn't selected");
         }
 
         int batchCount = vertex.getProperty(BATCH_COUNT);
@@ -298,12 +302,10 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         List<Long> deletedIds = new ArrayList<>();
         for (int i = 0; i < batchCount; i++) {
             long idToDelete = ids.get(i);
-            OrientDynaElementIterable deletedVertexResult
+            int deletedVertexResult
                     = graph.command(new OCommandSQL("delete vertex V where " + VERTEX_ID + " = " + idToDelete))
                     .execute();
-
-/*            long deletedCount = deletedVertexResult.iterator().next().getProperty("count");
-            Assert.assertEquals(deletedCount, 1, "Vertex was not deleted; ");*/
+            Assert.assertEquals(deletedVertexResult, 1, "Vertex " + idToDelete + " was not deleted; ");
 
             deletedIds.add(idToDelete);
             int deletedIdsSize = deletedIds.size();
@@ -318,6 +320,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                 }
             }
         }
+        LOG.info("Commit deletion.");
         graph.commit();
     }
 }
