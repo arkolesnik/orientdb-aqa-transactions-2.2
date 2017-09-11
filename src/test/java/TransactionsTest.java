@@ -1,3 +1,4 @@
+import com.orientechnologies.orient.core.exception.ORecordNotFoundException;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
@@ -125,8 +126,8 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     }
 
     private void addVertexesAndEdges(OrientGraph graph, long iterationNumber) {
-        int batchCount = BasicUtils.generateBatchSize();
-        //int batchCount = 6;
+        //int batchCount = BasicUtils.generateBatchSize();
+        int batchCount = 6;
         List<Vertex> vertexes = new ArrayList<>(batchCount);
         List<Long> ids = new ArrayList<>();
 
@@ -286,41 +287,28 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         Vertex vertex = (OrientVertex) firstVertexResult.iterator().next();
 
         int batchCount = vertex.getProperty(BATCH_COUNT);
-        int threadId = vertex.getProperty(CREATOR_ID);
 
-        List<Long> ids = new ArrayList<>();
+        List<Vertex> vertexes = new ArrayList<>();
+
         for (int i = 0; i < batchCount; i++) {
             Iterable<Edge> edges = vertex.getEdges(Direction.OUT, EDGE_LABEL);
             Assert.assertTrue(edges.iterator().hasNext(),
                     "Edge OUT doesn't exist in vertex " + vertex.getProperty(VERTEX_ID));
             Vertex nextVertex = edges.iterator().next().getVertex(Direction.IN);
-            ids.add(nextVertex.getProperty(VERTEX_ID));
+            vertexes.add(nextVertex);
             vertex = nextVertex;
         }
-        Collections.sort(ids);
 
         List<Long> deletedIds = new ArrayList<>();
-        for (int i = 0; i < batchCount; i++) {
-            long idToDelete = ids.get(i);
-            int deletedVertexResult
-                    = graph.command(new OCommandSQL("delete vertex V where " + VERTEX_ID + " = " + idToDelete))
-                    .execute();
-            Assert.assertEquals(deletedVertexResult, 1, "Vertex " + idToDelete + " was not deleted; ");
-
+        for (Vertex v : vertexes) {
+            long idToDelete = v.getProperty(VERTEX_ID);
+            v.remove();
             deletedIds.add(idToDelete);
-            int deletedIdsSize = deletedIds.size();
-            if (deletedIdsSize == batchCount / 3 || deletedIdsSize == batchCount * 2 / 3 || deletedIdsSize == batchCount) {
-                //check whether a part of vertexes were really deleted
-                selectByIds(graph, deletedIds, 0);
-                //check whether all the rest of the vertexes persist
-                List<Long> retainedIds = (List<Long>) CollectionUtils.disjunction(ids, deletedIds);
-                if (!retainedIds.isEmpty()) {
-                    performSelectOperations(
-                            graph, retainedIds, iterationNumber, threadId, retainedIds.size(), 1);
-                }
-            }
         }
-        LOG.info("Commit deletion.");
+        Collections.sort(deletedIds);
+        LOG.info("Commit deleted ring");
         graph.commit();
+
+        selectByIds(graph, deletedIds, 0);
     }
 }
