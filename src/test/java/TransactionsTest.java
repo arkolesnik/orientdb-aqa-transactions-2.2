@@ -134,6 +134,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         int batchCount = 6;
         List<Vertex> vertexes = new ArrayList<>(batchCount);
         List<Long> ids = new ArrayList<>();
+        long ringId = Counter.getNextRingId();
 
         long threadId = Thread.currentThread().getId();
         try {
@@ -147,7 +148,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                 vertex.setProperty(ITERATION, iterationNumber);
                 vertex.setProperty(RND, BasicUtils.generateRnd());
 
-                vertex.setProperty(RING_ID, Counter.getNextRingId());
+                vertex.setProperty(RING_ID, ringId);
 
                 vertexes.add(vertex);
                 int addedVertexes = vertexes.size();
@@ -159,21 +160,24 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                     graph.addEdge(null, vertexes.get(i), vertexes.get(0), EDGE_LABEL);
                 }
             }
+            BasicUtils.keepRing(ringId);
             graph.commit();
 
             //actions after commit
             performSelectOperations(graph, ids, iterationNumber, threadId, ids.size(), 1);
             checkRingCreated(graph, ids);
             //checkClusterPositionsPositive(vertexes);
+            BasicUtils.allowDeleteRing(ringId);
         } catch (ORecordDuplicatedException e) {
             LOG.error("Duplicated record", e);
             graph.rollback();
-
+            BasicUtils.allowDeleteRing(ringId);
             //actions after rollback
             performSelectOperations(graph, ids, iterationNumber, threadId, 0, 0);
         } catch (Exception e) {
             LOG.error("Exception was caught");
             graph.rollback();
+            BasicUtils.allowDeleteRing(ringId);
             throw e;
         }
     }
@@ -281,21 +285,24 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     private void deleteVertexesAndEdges(OrientGraph graph, long iterationNumber) {
         boolean success = false;
         long firstVertex;
-        OrientDynaElementIterable firstVertexResult = null;
+        long ringId = -1;
+        Vertex vertex = null;
+        OrientDynaElementIterable firstVertexResult;
         while (!success) {
             firstVertex = BasicUtils.getRandomVertexId();
             firstVertexResult = graph
                     .command(new OCommandSQL("select from V where " + VERTEX_ID + " = " + firstVertex))
                     .execute();
             if (firstVertexResult.iterator().hasNext()) {
-                success = true;
+                vertex = (OrientVertex) firstVertexResult.iterator().next();
+                ringId = vertex.getProperty(RING_ID);
+                if (!BasicUtils.containsAndSetRingId(ringId)) {
+                    success = true;
+                }
             }
         }
 
-        Vertex vertex = (OrientVertex) firstVertexResult.iterator().next();
-
         try {
-            long ringId = vertex.getProperty(RING_ID);
             LOG.info("Vertex from ring " + ringId + " is chosen by thread " + Thread.currentThread().getId());
 
             int batchCount = vertex.getProperty(BATCH_COUNT);
@@ -322,6 +329,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             LOG.info("Committing deleted ring... " + ringId + " by thread " + Thread.currentThread().getId());
             try {
                 graph.commit();
+                BasicUtils.allowDeleteRing(ringId);
                 for (int i = 0; i < vertexes.size(); i++) {
                     Counter.incrementDeleted();
                 }

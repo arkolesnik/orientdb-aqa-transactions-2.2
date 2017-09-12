@@ -3,6 +3,7 @@ package utils;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class BasicUtils {
@@ -11,8 +12,10 @@ public class BasicUtils {
     private static final int MAX_BATCH = 27;
     //TODO: change this numbers
     private static final int HOURS_NUMBER = 4;
-    private static final int ADDED_LIMIT = 500;
-    private static final int DELETED_LIMIT = 200;
+    private static final int ADDED_LIMIT = 5000;
+    private static final int DELETED_LIMIT = 2000;
+
+    private static ConcurrentHashMap ringsNotToDelete = new ConcurrentHashMap();
 
     public static int getMaxBatch() {
         return MAX_BATCH;
@@ -46,5 +49,17 @@ public class BasicUtils {
 
     public static long getRandomVertexId() {
         return ThreadLocalRandom.current().nextLong(1, Counter.getVertexesNumber());
+    }
+
+    public static void keepRing(long ringId) {
+        ringsNotToDelete.put(ringId, true);
+    }
+
+    public static void allowDeleteRing(long ringId) {
+        ringsNotToDelete.remove(ringId);
+    }
+
+    public static boolean containsAndSetRingId(long ringId) {
+        return ringsNotToDelete.putIfAbsent(ringId, true) != null;
     }
 }
