@@ -10,7 +10,6 @@ import com.tinkerpop.blueprints.impls.orient.OrientDynaElementIterable;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
-import org.apache.commons.collections.CollectionUtils;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import utils.BasicUtils;
@@ -30,6 +29,9 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     private static final String BATCH_COUNT = "batchCount";
     private static final String ITERATION = "iteration";
     private static final String RND = "rnd";
+
+    private static final String RING_ID = "ringId";
+
     private static final String EDGE_LABEL = "connects";
 
     @Test
@@ -64,9 +66,10 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                             iterationNumber++;
                             if (Counter.getVertexesNumber() < BasicUtils.getAddedLimit()) {
                                 addVertexesAndEdges(graph, iterationNumber);
-                                LOG.info("Ring is created");
+                                LOG.info("Ring is created by thread " + Thread.currentThread().getId());
                             }
                         }
+                        LOG.info("Graph shutdown by creating thread " + Thread.currentThread().getId());
                         graph.shutdown();
                         return null;
                     } catch (Exception e) {
@@ -86,11 +89,11 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                             if (Counter.getDeleted() < BasicUtils.getDeletedLimit()
                                     && Counter.getVertexesNumber() > BasicUtils.getMaxBatch()) {
                                 deleteVertexesAndEdges(graph, iterationNumber);
-                                LOG.info("Ring is deleted");
+                                LOG.info("Ring is deleted by thread " + Thread.currentThread().getId());
                             }
                         }
+                        LOG.info("Graph shutdown by deleting thread " + Thread.currentThread().getId());
                         graph.shutdown();
-
                         return null;
                     } catch (Exception e) {
                         LOG.error("Exception during operation processing", e);
@@ -116,6 +119,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         clazz.createProperty(BATCH_COUNT, OType.INTEGER);
         clazz.createProperty(ITERATION, OType.LONG);
         clazz.createProperty(RND, OType.LONG);
+        clazz.createProperty(RING_ID, OType.LONG);
     }
 
     private void createIndexes(OClass clazz) {
@@ -142,6 +146,9 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                 vertex.setProperty(BATCH_COUNT, batchCount);
                 vertex.setProperty(ITERATION, iterationNumber);
                 vertex.setProperty(RND, BasicUtils.generateRnd());
+
+                vertex.setProperty(RING_ID, Counter.getNextRingId());
+
                 vertexes.add(vertex);
                 int addedVertexes = vertexes.size();
 
@@ -166,6 +173,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             performSelectOperations(graph, ids, iterationNumber, threadId, 0, 0);
         } catch (Exception e) {
             LOG.error("Exception was caught");
+            graph.rollback();
             throw e;
         }
     }
@@ -286,29 +294,46 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
 
         Vertex vertex = (OrientVertex) firstVertexResult.iterator().next();
 
-        int batchCount = vertex.getProperty(BATCH_COUNT);
+        try {
+            long ringId = vertex.getProperty(RING_ID);
+            LOG.info("Vertex from ring " + ringId + " is chosen by thread " + Thread.currentThread().getId());
 
-        List<Vertex> vertexes = new ArrayList<>();
+            int batchCount = vertex.getProperty(BATCH_COUNT);
 
-        for (int i = 0; i < batchCount; i++) {
-            Iterable<Edge> edges = vertex.getEdges(Direction.OUT, EDGE_LABEL);
-            Assert.assertTrue(edges.iterator().hasNext(),
-                    "Edge OUT doesn't exist in vertex " + vertex.getProperty(VERTEX_ID));
-            Vertex nextVertex = edges.iterator().next().getVertex(Direction.IN);
-            vertexes.add(nextVertex);
-            vertex = nextVertex;
+            List<Vertex> vertexes = new ArrayList<>();
+
+            for (int i = 0; i < batchCount; i++) {
+                Iterable<Edge> edges = vertex.getEdges(Direction.OUT, EDGE_LABEL);
+                Assert.assertTrue(edges.iterator().hasNext(),
+                        "Edge OUT doesn't exist in vertex " + vertex.getProperty(VERTEX_ID));
+                Vertex nextVertex = edges.iterator().next().getVertex(Direction.IN);
+                vertexes.add(nextVertex);
+                vertex = nextVertex;
+            }
+
+            List<Long> deletedIds = new ArrayList<>(vertexes.size());
+            for (Vertex v : vertexes) {
+                long idToDelete = v.getProperty(VERTEX_ID);
+                v.remove();
+                deletedIds.add(idToDelete);
+            }
+            Collections.sort(deletedIds);
+
+            LOG.info("Committing deleted ring... " + ringId + " by thread " + Thread.currentThread().getId());
+            try {
+                graph.commit();
+                for (int i = 0; i < vertexes.size(); i++) {
+                    Counter.incrementDeleted();
+                }
+            } catch (ORecordNotFoundException e) {
+                LOG.error("== Vertex from " + ringId + " ring is not found by thread " + Thread.currentThread().getId());
+            }
+            LOG.info("Committed deleted ring " + ringId + " by thread " + Thread.currentThread().getId());
+
+
+            selectByIds(graph, deletedIds, 0);
+        } catch (NullPointerException e) {
+            LOG.error("== Vertex NullPointerException in thread " + Thread.currentThread().getId());
         }
-
-        List<Long> deletedIds = new ArrayList<>();
-        for (Vertex v : vertexes) {
-            long idToDelete = v.getProperty(VERTEX_ID);
-            v.remove();
-            deletedIds.add(idToDelete);
-        }
-        Collections.sort(deletedIds);
-        LOG.info("Commit deleted ring");
-        graph.commit();
-
-        selectByIds(graph, deletedIds, 0);
     }
 }

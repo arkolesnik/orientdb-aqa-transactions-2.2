@@ -7,6 +7,8 @@ public class Counter {
     private static AtomicLong vertexCounter = new AtomicLong(0);
     private static AtomicLong deletedVertexCounter = new AtomicLong(0);
 
+    private static AtomicLong ringCounter = new AtomicLong(0);
+
     public static long getNextVertexId() {
         return vertexCounter.incrementAndGet();
     }
@@ -22,4 +24,9 @@ public class Counter {
     public static long getDeleted() {
         return deletedVertexCounter.get();
     }
+
+    public static long getNextRingId() {
+        return ringCounter.incrementAndGet();
+    }
+
 }
