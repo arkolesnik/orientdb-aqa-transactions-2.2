@@ -17,9 +17,6 @@ import utils.Counter;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static utils.BasicUtils.getTimeToInterrupt;
 
 public class TransactionsTest extends CreateGraphDatabaseFixture {
 
@@ -45,15 +42,6 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         ExecutorService executor = Executors.newFixedThreadPool(8);
         List<Callable<Object>> tasksToCreate = new ArrayList<>();
         List<Callable<Object>> tasksToDelete = new ArrayList<>();
-        AtomicBoolean interrupt = new AtomicBoolean(false);
-
-        new Timer().schedule(
-                new TimerTask() {
-                    public void run() {
-                        interrupt.set(true);
-                    }
-                },
-                getTimeToInterrupt());
 
         try {
             for (int i = 0; i < 4; i++) {
@@ -62,12 +50,9 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                     OrientGraph graph;
                     try {
                         graph = factory.getTx();
-                        while (!interrupt.get()) {
+                        while (Counter.getVertexesNumber() < BasicUtils.getAddedLimit()) {
                             iterationNumber++;
-                            if (Counter.getVertexesNumber() < BasicUtils.getAddedLimit()) {
-                                addVertexesAndEdges(graph, iterationNumber);
-                                LOG.info("Ring is created by thread " + Thread.currentThread().getId());
-                            }
+                            addVertexesAndEdges(graph, iterationNumber);
                         }
                         LOG.info("Graph shutdown by creating thread " + Thread.currentThread().getId());
                         graph.shutdown();
@@ -80,16 +65,15 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             }
             for (int i = 0; i < 4; i++) {
                 tasksToDelete.add(() -> {
-                    long iterationNumber = 0;
                     OrientGraph graph;
                     try {
                         graph = factory.getTx();
-                        while (!interrupt.get()) {
-                            iterationNumber++;
+                        while (true) {
                             if (Counter.getDeleted() < BasicUtils.getDeletedLimit()
                                     && Counter.getVertexesNumber() > BasicUtils.getMaxBatch()) {
-                                deleteVertexesAndEdges(graph, iterationNumber);
-                                LOG.info("Ring is deleted by thread " + Thread.currentThread().getId());
+                                deleteVertexesAndEdges(graph);
+                            } else if (Counter.getDeleted() >= BasicUtils.getDeletedLimit()) {
+                                break;
                             }
                         }
                         LOG.info("Graph shutdown by deleting thread " + Thread.currentThread().getId());
@@ -104,8 +88,8 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
 
             tasksToCreate.addAll(tasksToDelete);
 
-            List<Future<Object>> futures1 = executor.invokeAll(tasksToCreate);
-            for (Future future : futures1) {
+            List<Future<Object>> futures = executor.invokeAll(tasksToCreate);
+            for (Future future : futures) {
                 future.get();
             }
         } finally {
@@ -130,8 +114,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     }
 
     private void addVertexesAndEdges(OrientGraph graph, long iterationNumber) {
-        //int batchCount = BasicUtils.generateBatchSize();
-        int batchCount = 6;
+        int batchCount = BasicUtils.generateBatchSize();
         List<Vertex> vertexes = new ArrayList<>(batchCount);
         List<Long> ids = new ArrayList<>();
         long ringId = Counter.getNextRingId();
@@ -162,6 +145,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             }
             BasicUtils.keepRing(ringId);
             graph.commit();
+            LOG.info("Ring " + ringId + " was created by thread " + threadId);
 
             //actions after commit
             performSelectOperations(graph, ids, iterationNumber, threadId, ids.size(), 1);
@@ -282,7 +266,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         }
     }*/
 
-    private void deleteVertexesAndEdges(OrientGraph graph, long iterationNumber) {
+    private void deleteVertexesAndEdges(OrientGraph graph) {
         boolean success = false;
         long firstVertex;
         long ringId = -1;
@@ -326,7 +310,6 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             }
             Collections.sort(deletedIds);
 
-            LOG.info("Committing deleted ring... " + ringId + " by thread " + Thread.currentThread().getId());
             try {
                 graph.commit();
                 BasicUtils.allowDeleteRing(ringId);
@@ -334,14 +317,14 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
                     Counter.incrementDeleted();
                 }
             } catch (ORecordNotFoundException e) {
-                LOG.error("== Vertex from " + ringId + " ring is not found by thread " + Thread.currentThread().getId());
+                LOG.error("Vertex from " + ringId + " ring is not found by thread " + Thread.currentThread().getId());
             }
-            LOG.info("Committed deleted ring " + ringId + " by thread " + Thread.currentThread().getId());
+            LOG.info("Ring " + ringId + " was deleted by thread " + Thread.currentThread().getId());
 
 
             selectByIds(graph, deletedIds, 0);
         } catch (NullPointerException e) {
-            LOG.error("== Vertex NullPointerException in thread " + Thread.currentThread().getId());
+            LOG.error("Vertex NullPointerException in thread " + Thread.currentThread().getId());
         }
     }
 }

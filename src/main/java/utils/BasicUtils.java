@@ -1,8 +1,5 @@
 package utils;
 
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -10,10 +7,8 @@ public class BasicUtils {
 
     private static final int MIN_BATCH = 6;
     private static final int MAX_BATCH = 27;
-    //TODO: change this numbers
-    private static final int HOURS_NUMBER = 4;
-    private static final int ADDED_LIMIT = 5000;
-    private static final int DELETED_LIMIT = 2000;
+    private static final int ADDED_LIMIT = 500000;
+    private static final int DELETED_LIMIT = 200000;
 
     private static ConcurrentHashMap ringsNotToDelete = new ConcurrentHashMap();
 
@@ -27,16 +22,6 @@ public class BasicUtils {
 
     public static int getDeletedLimit() {
         return DELETED_LIMIT;
-    }
-
-    public static Date getTimeToInterrupt() {
-        Date date = new Date();
-        GregorianCalendar calendar = new GregorianCalendar();
-        calendar.setTime(date);
-        //TODO: change seconds to hours and use HOURS_NUMBER
-        calendar.add(Calendar.SECOND, 30);
-        date.setTime(calendar.getTime().getTime());
-        return date;
     }
 
     public static int generateBatchSize() {

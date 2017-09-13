@@ -12,8 +12,6 @@ public class CreateGraphDatabaseFixture {
     private static final String URL = "remote:localhost";
     private static final String SERVER_USERNAME = "root";
     private static final String SERVER_PASSWORD = "root";
-    static final String DB_USERNAME = "admin";
-    static final String DB_PASSWORD = "admin";
     private static final String STORAGE_TYPE = "plocal";
     static final String DB_NAME = "testGraphDB";
     private static final String DB_TYPE = "graph";
