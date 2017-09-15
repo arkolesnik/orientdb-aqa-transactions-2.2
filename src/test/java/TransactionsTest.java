@@ -150,7 +150,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
             //actions after commit
             performSelectOperations(graph, ids, iterationNumber, threadId, ids.size(), 1);
             checkRingCreated(graph, ids);
-            //checkClusterPositionsPositive(vertexes);
+            checkClusterPositionsPositive(vertexes);
             BasicUtils.allowDeleteRing(ringId);
         } catch (ORecordDuplicatedException e) {
             LOG.error("Duplicated record", e);
@@ -259,12 +259,12 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
         Assert.assertTrue(isOneIteration, "Vertexes are not created during one iteration");
     }
 
-/*    private void checkClusterPositionsPositive(List<Vertex> vertexes) {
+    private void checkClusterPositionsPositive(List<Vertex> vertexes) {
         for (int i = 0; i < vertexes.size(); i++) {
-            long clusterPosition = vertexes.get(i).getIdentity().getClusterPosition();
+            long clusterPosition = ((OrientVertex) vertexes.get(i)).getIdentity().getClusterPosition();
             Assert.assertTrue(clusterPosition >= 0, "Cluster position in a record is not positive");
         }
-    }*/
+    }
 
     private void deleteVertexesAndEdges(OrientGraph graph) {
         boolean success = false;
