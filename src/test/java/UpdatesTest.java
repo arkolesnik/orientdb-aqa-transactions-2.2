@@ -32,7 +32,7 @@ public class UpdatesTest extends CreateGraphDatabaseFixture {
     private static final String EDGE_CLASS = "connects";
     private static final String EDGE_RING_ID = "ringId";
 
-    public static final Logger LOG = LoggerFactory.getLogger(UpdatesTest.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UpdatesTest.class);
 
     @Test
     public void shouldCheckUpdates() throws InterruptedException, ExecutionException {
@@ -74,14 +74,9 @@ public class UpdatesTest extends CreateGraphDatabaseFixture {
                     OrientGraph graph;
                     try {
                         graph = factory.getTx();
-                        while (true) {
+                        while (Counter.getRingsCounter() < Counter.getVertexesNumber() / 5) {
                             iterationNumber++;
-                            //TODO: change this conditions
-                            if (Counter.getVertexesNumber() > BasicUtils.getMaxBatch()) {
-                                updateVertexesAndEdges(graph, iterationNumber);
-                            } else if (Counter.getVertexesNumber() > 400) {
-                                break;
-                            }
+                            updateVertexesAndEdges(graph, iterationNumber);
                         }
                         LOG.info("Graph shutdown by updating thread " + Thread.currentThread().getId());
                         graph.shutdown();
@@ -345,7 +340,16 @@ public class UpdatesTest extends CreateGraphDatabaseFixture {
         List<Long> ids = new ArrayList<>();
         long ringId = Counter.getNextRingId();
         for (int i = 0; i < batchCount; i++) {
-            Vertex vertex = randomlySelectVertex();
+            Vertex vertex;
+            while (true) {
+                vertex = randomlySelectVertex();
+                List<Long> ringIds = vertex.getProperty(RING_IDS);
+                if (ringIds.size() < 100) { //extract this in the constant
+                    break;
+                } else {
+                    Counter.incrementRingsCounter();
+                }
+            }
             ids.add(vertex.getProperty(VERTEX_ID));
             List<Long> creatorIds = vertex.getProperty(CREATOR_IDS);
             creatorIds.add(Thread.currentThread().getId());

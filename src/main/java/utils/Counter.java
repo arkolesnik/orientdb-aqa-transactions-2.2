@@ -1,11 +1,13 @@
 package utils;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Counter {
 
     private static AtomicLong vertexCounter = new AtomicLong(0);
     private static AtomicLong deletedVertexCounter = new AtomicLong(0);
+    private static AtomicInteger hundredOfRingsCounter = new AtomicInteger(0);
 
     private static AtomicLong ringCounter = new AtomicLong(0);
 
@@ -31,6 +33,14 @@ public class Counter {
 
     public static long getInstanceNumber() {
         return vertexCounter.get();
+    }
+
+    public static void incrementRingsCounter() {
+        hundredOfRingsCounter.incrementAndGet();
+    }
+
+    public static int getRingsCounter() {
+        return hundredOfRingsCounter.get();
     }
 
 }
