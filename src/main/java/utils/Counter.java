@@ -29,4 +29,8 @@ public class Counter {
         return ringCounter.incrementAndGet();
     }
 
+    public static long getInstanceNumber() {
+        return vertexCounter.get();
+    }
+
 }

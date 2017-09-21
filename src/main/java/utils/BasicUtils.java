@@ -7,7 +7,10 @@ public class BasicUtils {
 
     private static final int MIN_BATCH = 6;
     private static final int MAX_BATCH = 27;
-    private static final int ADDED_LIMIT = 500000;
+
+    private static final int ADDED_LIMIT = 500;
+    //private static final int ADDED_LIMIT = 500000;
+
     private static final int DELETED_LIMIT = 200000;
 
     private static ConcurrentHashMap ringsNotToDelete = new ConcurrentHashMap();

@@ -10,6 +10,8 @@ import com.tinkerpop.blueprints.impls.orient.OrientDynaElementIterable;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import utils.BasicUtils;
@@ -26,13 +28,13 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
     private static final String BATCH_COUNT = "batchCount";
     private static final String ITERATION = "iteration";
     private static final String RND = "rnd";
-
     private static final String RING_ID = "ringId";
-
     private static final String EDGE_LABEL = "connects";
 
+    public static final Logger LOG = LoggerFactory.getLogger(TransactionsTest.class);
+
     @Test
-    public void mainTest() throws InterruptedException, ExecutionException {
+    public void shouldCheckTransactions() throws InterruptedException, ExecutionException {
         OrientGraphNoTx graphNoTx = factory.getNoTx();
         OClass clazz = graphNoTx.createVertexType(VERTEX_CLASS);
         graphNoTx.createEdgeType(EDGE_LABEL);
@@ -99,7 +101,7 @@ public class TransactionsTest extends CreateGraphDatabaseFixture {
 
     private void createProperties(OClass clazz) {
         clazz.createProperty(VERTEX_ID, OType.LONG);
-        clazz.createProperty(CREATOR_ID, OType.INTEGER);
+        clazz.createProperty(CREATOR_ID, OType.LONG);
         clazz.createProperty(BATCH_COUNT, OType.INTEGER);
         clazz.createProperty(ITERATION, OType.LONG);
         clazz.createProperty(RND, OType.LONG);
